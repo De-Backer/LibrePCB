@@ -1,7 +1,14 @@
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+
 jobs:
 - job: Linux
-  pool:
-    vmImage: 'ubuntu-16.04'
+  runs-on: self-hosted
   variables:
     OS: 'linux'
     ARCH: 'x86_64'
