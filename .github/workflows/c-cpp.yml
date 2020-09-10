@@ -1,17 +1,70 @@
-name: C/C++ CI
-
-on:
-  push:
-    branches: [ master ]
-  pull_request:
-    branches: [ master ]
-
 jobs:
-  build:
-
-    runs-on: self-hosted
-
-    steps:
-    - uses: actions/checkout@v2
-    - name: configure
-      run: ci/build_librepcb.sh
+- job: Linux
+  pool:
+    vmImage: 'ubuntu-16.04'
+  variables:
+    OS: 'linux'
+    ARCH: 'x86_64'
+  strategy:
+    matrix:
+      Ubuntu_1404_GCC:
+        IMAGE: librepcb/librepcb-dev:ubuntu-14.04-2
+      Ubuntu_1604_GCC:
+        IMAGE: librepcb/librepcb-dev:ubuntu-16.04-2
+      Ubuntu_1604_Qt_5_14_2_GCC:
+        IMAGE: librepcb/librepcb-dev:ubuntu-16.04-qt5.14.2-1
+        DEPLOY: true
+      Ubuntu_1804_Clang:
+        IMAGE: librepcb/librepcb-dev:ubuntu-18.04-2
+        CC: clang
+        CXX: clang++
+      Ubuntu_2004_GCC:
+        IMAGE: librepcb/librepcb-dev:ubuntu-20.04-3
+      Ubuntu_2004_Unbundled:
+        IMAGE: librepcb/librepcb-dev:ubuntu-20.04-3
+        UNBUNDLE: "quazip polyclipping"
+        LD_LIBRARY_PATH: $(Build.Repository.LocalPath)/build/install/opt/lib
+  container: $[ variables['IMAGE'] ]
+  steps:
+  - checkout: self
+    clean: true
+    submodules: recursive
+  - bash: |
+      source ./ci/install_dependencies.sh
+      # Pass modified PATH to following steps:
+      echo "##vso[task.setvariable variable=PATH]$PATH"
+    displayName: Install Dependencies
+  - bash: rm -rf libs/quazip
+    displayName: Remove bundled quazip lib
+    condition: and(succeeded(), contains(variables['UNBUNDLE'], 'quazip'))
+  - bash: rm -rf libs/polyclipping
+    displayName: Remove bundled polyclipping lib
+    condition: and(succeeded(), contains(variables['UNBUNDLE'], 'polyclipping'))
+  - bash: ./ci/build_librepcb.sh
+    displayName: Build LibrePCB
+  - bash: ./ci/build_linux_appimage.sh
+    displayName: Build AppImage
+    condition: and(succeeded(), eq(variables['DEPLOY'], 'true'))
+  - bash: ./ci/build_linux_archive.sh
+    displayName: Build Archive
+    condition: and(succeeded(), eq(variables['DEPLOY'], 'true'))
+  - bash: ./ci/build_installer.sh
+    displayName: Build Installer
+    condition: and(succeeded(), eq(variables['DEPLOY'], 'true'))
+  - bash: xvfb-run -a ./build/output/qztest
+    displayName: Run QuaZip Unittests
+    condition: and(succeeded(), not(contains(variables['UNBUNDLE'], 'quazip')))
+  - bash: xvfb-run -a ./build/output/librepcb-unittests
+    displayName: Run LibrePCB Unittests
+  - bash: xvfb-run -a --server-args="-screen 0 1024x768x24" pytest -v --librepcb-executable="build/install/opt/bin/librepcb-cli" ./tests/cli
+    displayName: Run LibrePCB-CLI Functional Tests
+  - bash: xvfb-run -a --server-args="-screen 0 1024x768x24" pytest -v --librepcb-executable="build/install/opt/bin/librepcb" ./tests/funq
+    displayName: Run LibrePCB Functional Tests
+  - bash: ./ci/upload_artifacts.sh
+    displayName: Upload Artifacts
+    condition: and(succeeded(), eq(variables['DEPLOY'], 'true'), ne(variables['Build.Reason'], 'PullRequest'))
+    env:
+      UPLOAD_URL: $(ARTIFACTS_UPLOAD_URL)
+      UPLOAD_USER: $(ARTIFACTS_UPLOAD_USER)
+      UPLOAD_PASS: $(ARTIFACTS_UPLOAD_PASS)
+      UPLOAD_SIGN_KEY: $(ARTIFACTS_UPLOAD_SIGN_KEY)
