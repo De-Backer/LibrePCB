@@ -7,7 +7,7 @@ on:
 
 
 jobs:
-- job: build
+  build:
   runs-on: self-hosted
   variables:
     OS: 'linux'
