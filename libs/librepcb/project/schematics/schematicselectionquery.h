@@ -51,6 +51,13 @@ class SchematicSelectionQuery final : public QObject {
   Q_OBJECT
 
 public:
+  // Types
+  struct NetSegmentItems {
+    QSet<SI_NetPoint*> netpoints;
+    QSet<SI_NetLine*>  netlines;
+    QSet<SI_NetLabel*> netlabels;
+  };
+
   // Constructors / Destructor
   SchematicSelectionQuery()                                     = delete;
   SchematicSelectionQuery(const SchematicSelectionQuery& other) = delete;
@@ -70,7 +77,18 @@ public:
   const QSet<SI_NetLabel*>& getNetLabels() const noexcept {
     return mResultNetLabels;
   }
-  int  getResultCount() const noexcept;
+
+  /**
+   * @brief Get net points, net lines and net labels grouped by net segement
+   *
+   * Same as #getNetPoints(), #getNetLines() and #getNetLabels(), but grouped
+   * by their corresponding net segments. Only net segments containing selected
+   * items are returned.
+   *
+   * @return List of net segments containing the selected items
+   */
+  QHash<SI_NetSegment*, NetSegmentItems> getNetSegmentItems() const noexcept;
+  int                                    getResultCount() const noexcept;
   bool isResultEmpty() const noexcept { return (getResultCount() == 0); }
 
   // General Methods
